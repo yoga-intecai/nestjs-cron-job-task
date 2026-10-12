@@ -1,124 +1,168 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# NestJS Cron Job Task API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A NestJS + MongoDB REST API for managing tasks and automatically expiring
+overdue tasks via a distributed cron job that is safe to run across multiple
+application instances.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Features
 
-## Description
+- Task CRUD (`create`, `list`, `read`, `update`, `delete`) with DTO validation.
+- MongoDB persistence via `@nestjs/mongoose`.
+- A scheduled cron job that marks overdue `Pending` tasks as `Expired`.
+- **Distributed locking** so only one instance runs the cron operation at a
+  time, using an atomic MongoDB `findOneAndUpdate` upsert with lease expiry.
+- Liveness (`/health`) and readiness (`/ready`) endpoints.
+- Helmet, CORS allowlisting, request validation, graceful shutdown and
+  process-level error logging.
+- Strict environment validation with sensible defaults and numeric ranges.
+- Docker, Docker Compose, GitHub Actions CI, and a pre-commit hook.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Requirements
 
-## Project setup
+- Node.js 20+
+- npm
+- MongoDB 6+ (local, Docker, or Atlas)
+
+## Setup
 
 ```bash
-$ npm install
+npm install
+cp .env.example .env   # then edit the values
 ```
 
-## Compile and run the project
+`npm install` also configures the repository's Git hooks (`core.hooksPath`
+points at `.githooks`).
+
+## Environment variables
+
+Validated at startup with Joi. Invalid or missing required values stop the
+application.
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `NODE_ENV` | no | `development` | `development`, `production` or `test`. |
+| `PORT` | no | `3000` | HTTP port (1-65535). |
+| `MONGODB_URI` | **yes** | - | `mongodb://` or `mongodb+srv://` connection string (never hardcoded). |
+| `MONGODB_POOL_SIZE` | no | `10` | Max connection pool size (1-100). |
+| `MONGODB_SERVER_SELECTION_TIMEOUT_MS` | no | `5000` | Server selection timeout. |
+| `MONGODB_CONNECT_TIMEOUT_MS` | no | `10000` | Connection timeout. |
+| `MONGODB_SOCKET_TIMEOUT_MS` | no | `45000` | Socket timeout. |
+| `MONGODB_TLS` | no | `false` | Enable TLS. Certificate validation is always enforced. |
+| `MONGODB_TLS_CA_FILE` | no | - | Optional CA file path used with TLS. |
+| `CRON_SCHEDULE` | no | `0 * * * * *` | 6-field cron expression (includes seconds). |
+| `CRON_TIMEZONE` | no | `UTC` | Timezone for the cron schedule. |
+| `CRON_LOCK_TTL_SECONDS` | no | `30` | Distributed lock lease duration. |
+| `CORS_ORIGIN` | production: **yes** | `*` | Comma-separated allowlist. `*` is rejected in production. |
+
+## Running
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm run start        # one-off
+npm run start:dev    # watch mode
+npm run start:prod   # node dist/main
 ```
 
-## Run tests
+## API
+
+Base URL: `http://localhost:3000`
+
+| Method | Path | Description | Success |
+| --- | --- | --- | --- |
+| `GET` | `/` | Hello world. | `200` |
+| `GET` | `/health` | Liveness of the process. | `200` |
+| `GET` | `/ready` | Readiness; `503` until MongoDB is available. | `200` / `503` |
+| `POST` | `/tasks` | Create a task. Body: `{ "title": string, "expiresAt": ISO date }`. | `201` |
+| `GET` | `/tasks` | List tasks. | `200` |
+| `GET` | `/tasks/:id` | Get a task by id. | `200` / `400` / `404` |
+| `PATCH` | `/tasks/:id` | Update `title`, `status` and/or `expiresAt`. | `200` / `400` / `404` |
+| `DELETE` | `/tasks/:id` | Delete a task. | `200` / `400` / `404` |
+
+Allowed `status` values: `Pending`, `In Progress`, `Expired`.
+
+Example:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+curl -X POST http://localhost:3000/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Ship it","expiresAt":"2026-12-31T23:59:59.000Z"}'
 ```
+
+## Cron behavior
+
+- Registered dynamically on startup using `CRON_SCHEDULE` / `CRON_TIMEZONE`.
+- Each run acquires a distributed lock named `expire_tasks_cron` in the
+  `cron_locks` collection of the application database.
+- The lock document uses the lock name as its `_id`. Acquisition is a single
+  atomic `findOneAndUpdate` upsert: if the document exists and has not expired,
+  the upsert fails with a duplicate key error and the run is skipped.
+- The lock has a lease (`CRON_LOCK_TTL_SECONDS`). A crashed instance stops
+  renewing, so the lease expires and another instance takes over. A former
+  owner can never release a newer owner's lock, because release is scoped to
+  the owning instance id.
+- Overdue `Pending` tasks are updated to `Expired`, and the lock is released in
+  a `finally` block so a failed run does not block future executions.
+
+## Tests
+
+```bash
+npm run test       # unit tests (Vitest)
+npm run test:cov   # unit tests with coverage
+npm run test:e2e   # e2e tests (require MongoDB, see MONGODB_URI)
+```
+
+Unit tests use mocked Mongoose models and an in-memory fake collection that
+reproduces the atomic lock semantics, so lock contention and recovery are
+tested without a live database. E2E tests require a running MongoDB.
+
+## Lint and format
+
+```bash
+npm run lint          # oxlint (type-aware)
+npm run format        # prettier --write
+npm run format:check  # prettier --check
+```
+
+A pre-commit hook (`.githooks/pre-commit`) runs `lint` and `format:check`.
+
+## Docker
+
+```bash
+docker build -t cron-job-task .
+```
+
+Or run the whole stack (API + MongoDB with persistent storage and health
+checks):
+
+```bash
+docker compose up --build
+```
+
+The API is exposed on `http://localhost:3000`. Override `MONGODB_URI` and
+`CORS_ORIGIN` for real environments.
 
 ## Deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+This project has no configured hosting platform or deployment credentials in
+the repository. The GitHub Actions workflow (`.github/workflows/ci.yml`) only
+performs formatting, lint, build, unit tests and e2e tests against a MongoDB
+service container.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+To deploy, provide an external MongoDB (e.g. Atlas via `MONGODB_URI`), set a
+production `CORS_ORIGIN` allowlist, and run the Docker image or
+`npm run start:prod` behind your platform of choice. After deploying, verify:
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+- `GET /health` returns `200`
+- `GET /ready` returns `200` once MongoDB is reachable
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project:
-
-```bash
-$ npm install @nestjs/observe
-```
-
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Note that the application waits for the initial MongoDB connection before it
+starts listening, so orchestrators should ensure `MONGODB_URI` is reachable at
+startup (the Docker health check on the API declares it healthy only once
+`/health` responds). Once running, a MongoDB outage is reported by `/ready`
+with an HTTP `503` while `/health` continues to report the process as alive.
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+The licensing intent for this repository is **not yet decided**. The
+`package.json` currently declares `"license": "UNLICENSED"` and the project is
+private. A `LICENSE` file has deliberately not been added; clarification from
+the owner is required before choosing a license.

@@ -1,0 +1,16 @@
+node_modules
+.git
+.github
+.gitignore
+.githooks
+dist
+Dockerfile
+docker-compose.yml
+.dockerignore
+.env
+.env.*
+*.md
+*.log
+coverage
+test
+*.tsbuildinfo

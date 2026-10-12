@@ -7,13 +7,17 @@ import { AppModule } from './../src/app.module.js';
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 
   it('/ (GET)', () => {
@@ -23,7 +27,14 @@ describe('AppController (e2e)', () => {
       .expect('Hello World!');
   });
 
-  afterEach(async () => {
-    await app.close();
+  it('/health (GET) reports liveness', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/health')
+      .expect(200);
+    expect(response.body.status).toBe('ok');
+  });
+
+  it('/ready (GET) reports readiness with MongoDB available', async () => {
+    await request(app.getHttpServer()).get('/ready').expect(200);
   });
 });
