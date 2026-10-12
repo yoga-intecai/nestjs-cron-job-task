@@ -1,19 +1,10 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
-import { AppService } from './app.service.js';
 import { InjectConnection } from '@nestjs/mongoose';
 import type { Connection } from 'mongoose';
 
 @Controller()
 export class AppController {
-  constructor(
-    private readonly appService: AppService,
-    @InjectConnection() private readonly connection: Connection,
-  ) {}
-
-  @Get()
-  getHello(): string {
-    return this.appService.getHello();
-  }
+  constructor(@InjectConnection() private readonly connection: Connection) {}
 
   @Get('health')
   getHealth() {

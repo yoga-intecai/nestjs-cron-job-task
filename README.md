@@ -68,7 +68,6 @@ Base URL: `http://localhost:3000`
 
 | Method | Path | Description | Success |
 | --- | --- | --- | --- |
-| `GET` | `/` | Hello world. | `200` |
 | `GET` | `/health` | Liveness of the process. | `200` |
 | `GET` | `/ready` | Readiness; `503` until MongoDB is available. | `200` / `503` |
 | `POST` | `/tasks` | Create a task. Body: `{ "title": string, "expiresAt": ISO date }`. | `201` |

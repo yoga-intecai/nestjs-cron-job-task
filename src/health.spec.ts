@@ -3,7 +3,6 @@ import { Test } from '@nestjs/testing';
 import { getConnectionToken } from '@nestjs/mongoose';
 import request from 'supertest';
 import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 
 describe('Health endpoints (HTTP)', () => {
   let app: INestApplication;
@@ -13,10 +12,7 @@ describe('Health endpoints (HTTP)', () => {
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [
-        AppService,
-        { provide: getConnectionToken(), useValue: mockConnection },
-      ],
+      providers: [{ provide: getConnectionToken(), useValue: mockConnection }],
     }).compile();
 
     app = moduleRef.createNestApplication();

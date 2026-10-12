@@ -3,7 +3,6 @@ import { APP_PIPE } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 import { TasksModule } from './tasks/tasks.module.js';
 import { MongooseModule } from '@nestjs/mongoose';
 import { envValidationSchema } from './config/env.validation.js';
@@ -27,7 +26,6 @@ import { buildMongooseOptions } from './config/configuration.js';
   ],
   controllers: [AppController],
   providers: [
-    AppService,
     {
       provide: APP_PIPE,
       useValue: new ValidationPipe({
